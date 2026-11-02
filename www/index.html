@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#0f6b54">
+<title>حاسبة الصيرفة</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Reem+Kufi:wght@500;700&display=swap">
+<style>
+/* Layout: one narrow column. Converter first, then rates (bank = automatic, market = typed by hand), then the ledger of saved operations. */
+:root{
+  --bg:#edf2f0;--surface:#ffffff;--surface2:#e2eae7;--ink:#12241f;--muted:#586d66;--line:#c9d6d1;
+  --accent:#0f6b54;--accent-ink:#ffffff;--warn:#7a4f00;--warn-bg:#fbf0d6;
+  --font-display:'Reem Kufi','IBM Plex Sans Arabic','Segoe UI',Tahoma,system-ui,sans-serif;
+  --font-body:'IBM Plex Sans Arabic','Segoe UI',Tahoma,system-ui,-apple-system,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0d1915;--surface:#14241e;--surface2:#1c3129;--ink:#e5f0ec;--muted:#93aaa1;--line:#2b4339;
+    --accent:#4fc7a0;--accent-ink:#06231a;--warn:#e9c26f;--warn-bg:#2a2410;color-scheme:dark;
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.6;
+  padding-top:max(20px,env(safe-area-inset-top,0px));
+  padding-bottom:max(40px,env(safe-area-inset-bottom,0px));
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+}
+.app{max-width:520px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+.num{font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate}
+h1{font-family:var(--font-display);font-size:28px;margin:0;line-height:1.2}
+h2{font-family:var(--font-display);font-size:18px;margin:0;font-weight:700}
+h3{font-size:14px;margin:0;font-weight:600}
+.sub{color:var(--muted);font-size:14px;margin:4px 0 0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:14px}
+label,.lbl{font-size:13px;color:var(--muted);letter-spacing:.02em;display:block;margin-bottom:6px}
+input[type=text]{
+  width:100%;font:inherit;font-size:22px;font-weight:600;color:var(--ink);background:var(--bg);
+  border:1px solid var(--line);border-radius:8px;padding:10px 12px;direction:ltr;text-align:right;font-variant-numeric:tabular-nums;
+}
+input.small{font-size:18px}
+input[type=text]:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.chips{display:flex;gap:8px}
+.chip{
+  flex:1;min-width:0;font:inherit;font-weight:600;font-size:15px;padding:9px 6px;border-radius:8px;cursor:pointer;
+  background:var(--bg);color:var(--ink);border:1px solid var(--line);text-align:center;line-height:1.3;
+}
+.chip small{display:block;font-weight:400;font-size:12px;color:var(--muted)}
+.chip[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.chip[aria-pressed="true"] small{color:inherit;opacity:.85}
+.swap{display:block;margin:0 auto;width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--surface2);color:var(--ink);font-size:20px;cursor:pointer}
+.result{background:var(--accent);color:var(--accent-ink);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:2px}
+.result .big{font-size:34px;font-weight:600;line-height:1.2;overflow-wrap:anywhere}
+.result .cur{font-size:14px;opacity:.9}
+.result .rate{font-size:13px;opacity:.85}
+.actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.btn{font:inherit;font-weight:600;font-size:14px;padding:8px 14px;border-radius:8px;cursor:pointer;border:1px solid var(--accent-ink);background:transparent;color:var(--accent-ink)}
+.btn.solid{background:var(--accent-ink);color:var(--accent)}
+.btn.plain{border-color:var(--line);color:var(--ink);background:var(--bg)}
+.all{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.all div{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-width:0}
+.all .k{font-size:12px;color:var(--muted)}
+.all .v{font-weight:600;font-size:15px;overflow-wrap:anywhere}
+.fields{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.ro{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 12px;min-width:0}
+.ro .k{font-size:12.5px;color:var(--muted)}
+.ro .v{font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}
+.group{display:flex;flex-direction:column;gap:8px}
+.status{font-size:13.5px;color:var(--muted);margin:0}
+.status.warn{background:var(--warn-bg);color:var(--warn);border-radius:8px;padding:8px 12px}
+.hint{font-size:13px;color:var(--muted);margin:0}
+.cross{display:flex;flex-direction:column;gap:6px;font-size:14px;color:var(--muted)}
+.cross div{display:flex;justify-content:space-between;gap:10px;border-bottom:1px dashed var(--line);padding-bottom:6px}
+.cross b{color:var(--ink);font-weight:600}
+.log{display:flex;flex-direction:column;margin:0;padding:0;list-style:none}
+.log li{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);font-size:14.5px}
+.log li:last-child{border-bottom:0}
+.log .t{color:var(--muted);font-size:12px}
+.empty{color:var(--muted);font-size:14px;margin:0}
+.head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+[hidden]{display:none!important}
+@media (max-width:380px){.fields{grid-template-columns:1fr}.all{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:no-preference){.chip,.btn,.swap{transition:background .15s,border-color .15s}}
+</style>
+</head>
+<body>
+<main class="app">
+  <header>
+    <h1>حاسبة الصيرفة</h1>
+    <p class="sub">دينار عراقي، ليرة تركية، دولار. سعر البنك يتحدث لحاله، وسعر السوق للدينار تكتبه أنت.</p>
+  </header>
+
+  <section class="card" aria-labelledby="h-conv">
+    <h2 id="h-conv">تحويل</h2>
+    <div>
+      <label for="amount">المبلغ</label>
+      <input type="text" id="amount" inputmode="decimal" autocomplete="off" value="100">
+    </div>
+    <div>
+      <span class="lbl">من</span>
+      <div class="chips" id="from-chips"></div>
+    </div>
+    <button class="swap" id="swap" type="button" aria-label="عكس العملتين">⇅</button>
+    <div>
+      <span class="lbl">إلى</span>
+      <div class="chips" id="to-chips"></div>
+    </div>
+
+    <div class="result" aria-live="polite">
+      <span class="cur" id="res-label">يصير</span>
+      <span class="big num" id="res-main">—</span>
+      <span class="rate num" id="res-rate"></span>
+      <div class="actions">
+        <button class="btn solid" id="save" type="button">سجّل العملية</button>
+        <button class="btn" id="copy" type="button">انسخ النتيجة</button>
+      </div>
+    </div>
+
+    <div>
+      <span class="lbl">نفس المبلغ بكل العملات</span>
+      <div class="all" id="all"></div>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="h-rates">
+    <div class="head">
+      <h2 id="h-rates">الأسعار</h2>
+      <button class="btn plain" id="refresh" type="button">تحديث الآن</button>
+    </div>
+
+    <div>
+      <span class="lbl">الدينار يحسب على</span>
+      <div class="chips" id="src-chips"></div>
+    </div>
+
+    <div class="group">
+      <h3>سعر البنك · تلقائي</h3>
+      <p class="status" id="bank-status">جاري جلب أسعار البنك…</p>
+      <div class="fields">
+        <div class="ro"><div class="k">دينار · شراء دولار</div><div class="v num" id="b-iqd-buy">—</div></div>
+        <div class="ro"><div class="k">دينار · بيع دولار</div><div class="v num" id="b-iqd-sell">—</div></div>
+        <div class="ro"><div class="k">ليرة · شراء دولار</div><div class="v num" id="b-try-buy">—</div></div>
+        <div class="ro"><div class="k">ليرة · بيع دولار</div><div class="v num" id="b-try-sell">—</div></div>
+      </div>
+    </div>
+
+    <div class="group">
+      <h3>سعر السوق للدينار · يدوي</h3>
+      <div class="fields">
+        <div>
+          <label for="m-buy">شراء دولار</label>
+          <input type="text" class="small" id="m-buy" inputmode="decimal" autocomplete="off" placeholder="مثلاً 1,700">
+        </div>
+        <div>
+          <label for="m-sell">بيع دولار</label>
+          <input type="text" class="small" id="m-sell" inputmode="decimal" autocomplete="off" placeholder="مثلاً 1,683">
+        </div>
+      </div>
+      <p class="status" id="mkt-msg"></p>
+    </div>
+
+    <p class="hint">شراء = كم تدفع حتى تاخذ 1 دولار. بيع = كم تستلم إذا بعت 1 دولار. الليرة تحسب دائماً على سعر البنك.</p>
+
+    <div>
+      <label for="margin">عمولة إضافية %</label>
+      <input type="text" class="small" id="margin" inputmode="decimal" autocomplete="off" value="0">
+    </div>
+    <div class="cross" id="cross"></div>
+  </section>
+
+  <section class="card" aria-labelledby="h-log">
+    <div class="head">
+      <h2 id="h-log">سجل العمليات</h2>
+      <button class="btn plain" id="clear" type="button" hidden>مسح السجل</button>
+    </div>
+    <p class="empty" id="log-empty">ماكو عمليات بعد. اضغط «سجّل العملية» بعد ما تحسب.</p>
+    <ul class="log" id="log"></ul>
+  </section>
+</main>
+
+<script src="rates-bundled.js"></script>
+<script>
+(function(){
+  var RATES_URL = 'https://raw.githubusercontent.com/ALRAWE75/sarafa-app/main/rates.json';
+  var CUR = {IQD:{name:'دينار',dec:0}, TRY:{name:'ليرة',dec:2}, USD:{name:'دولار',dec:2}};
+  var ORDER = ['USD','IQD','TRY'];
+  var st = {amount:100, from:'USD', to:'IQD', src:'bank', margin:0};
+  var bank = null, bankOrigin = '';      // bankOrigin: 'online' | 'saved' | 'bundled'
+  var mkt = {iqdBuy:0, iqdSell:0};       // typed by hand
+  var log = [];
+  var lastFetch = 0;
+
+  function $(id){return document.getElementById(id)}
+  function lsGet(k){try{return localStorage.getItem(k)}catch(e){return null}}
+  function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+  function norm(s){
+    return String(s||'').replace(/[٠-٩]/g,function(d){return '٠١٢٣٤٥٦٧٨٩'.indexOf(d)}).replace(/٫/g,'.');
+  }
+  function num(s){
+    var n = parseFloat(norm(s).replace(/[,٬\s]/g,'')); return isFinite(n)&&n>=0 ? n : 0;
+  }
+  function fmt(n,c){
+    if(n==null||!isFinite(n)) return '—';
+    return n.toLocaleString('en-US',{minimumFractionDigits:CUR[c].dec,maximumFractionDigits:CUR[c].dec});
+  }
+  function fmtRate(n){return n>0 ? n.toLocaleString('en-US',{maximumFractionDigits:4}) : '—'}
+  function showNum(n){return n>0 ? n.toLocaleString('en-US',{maximumFractionDigits:4}) : ''}
+  function today(){return new Date().toISOString().slice(0,10)}
+
+  /* Puts a comma between thousands while typing and keeps the cursor where it was. */
+  function liveFormat(el){
+    var v=el.value, pos=el.selectionStart==null ? v.length : el.selectionStart;
+    var left=norm(v.slice(0,pos)).replace(/[^0-9.]/g,'').length;
+    var raw=norm(v).replace(/[^0-9.]/g,'');
+    var parts=raw.split('.');
+    var intPart=parts[0].replace(/^0+(?=\d)/,'');
+    var dec=parts.length>1 ? parts.slice(1).join('') : null;
+    var out=intPart.replace(/\B(?=(\d{3})+(?!\d))/g,',')+(dec!==null ? '.'+dec : '');
+    el.value=out;
+    var count=0,i=0;
+    for(;i<out.length&&count<left;i++){ if(/[0-9.]/.test(out.charAt(i))) count++; }
+    try{el.setSelectionRange(i,i)}catch(e){}
+  }
+
+  /* ---- Rates: units of the currency per 1 USD. buy = you pay to get 1 USD, sell = you receive for 1 USD. ---- */
+  function normRates(d){
+    if(!d||!d.iqd||!d['try']) return null;
+    var r={iqdBuy:+d.iqd.buy,iqdSell:+d.iqd.sell,tryBuy:+d['try'].buy,trySell:+d['try'].sell,date:String(d.date||'')};
+    return (r.iqdBuy>0&&r.iqdSell>0&&r.tryBuy>0&&r.trySell>0) ? r : null;
+  }
+  function iqdRates(){
+    if(st.src==='market') return {buy:mkt.iqdBuy, sell:mkt.iqdSell};
+    return bank ? {buy:bank.iqdBuy, sell:bank.iqdSell} : {buy:0, sell:0};
+  }
+  function buyRate(c){ if(c==='USD') return 1; if(c==='IQD') return iqdRates().buy; return bank ? bank.tryBuy : 0 }
+  function sellRate(c){ if(c==='USD') return 1; if(c==='IQD') return iqdRates().sell; return bank ? bank.trySell : 0 }
+  function conv(a,f,t,withMargin){
+    if(f===t) return a;
+    var usd;
+    if(f==='USD'){usd=a} else {var b=buyRate(f); if(!(b>0)) return null; usd=a/b}
+    var r;
+    if(t==='USD'){r=usd} else {var s=sellRate(t); if(!(s>0)) return null; r=usd*s}
+    return withMargin ? r*(1-Math.min(st.margin,100)/100) : r;
+  }
+  function rateText(f,t){
+    var unit = f==='IQD' ? 1000 : (f==='TRY' ? 100 : 1);
+    var r = conv(unit,f,t,true);
+    if(r==null) return 'السعر غير متوفر';
+    return fmt(unit,f)+' '+CUR[f].name+' = '+fmt(r,t)+' '+CUR[t].name;
+  }
+
+  function setBank(r,origin){
+    if(bank && r.date && bank.date && r.date < bank.date) return;  // never go back to older rates
+    bank=r; bankOrigin=origin; render();
+  }
+  function fetchRates(manual){
+    var btn=$('refresh');
+    lastFetch=Date.now();
+    if(manual){btn.disabled=true;btn.textContent='جاري التحديث…'}
+    var ctrl = (typeof AbortController!=='undefined') ? new AbortController() : null;
+    var timer = setTimeout(function(){ if(ctrl) ctrl.abort() },9000);
+    // The tiny query value just avoids a stale copy from the download cache.
+    fetch(RATES_URL+'?t='+Math.floor(Date.now()/300000), {cache:'no-store', signal: ctrl?ctrl.signal:undefined})
+      .then(function(res){ if(!res.ok) throw new Error('http'); return res.json() })
+      .then(function(d){
+        var r=normRates(d); if(!r) throw new Error('bad');
+        lsSet('sarafa-bank',JSON.stringify(d));
+        setBank(r,'online');
+      })
+      .catch(function(){
+        if(manual){ var s=$('bank-status'); s.textContent='ما قدرت أجيب التحديث. تأكد من الإنترنت، وهذي آخر أسعار محفوظة.'; s.className='status warn'; }
+      })
+      .then(function(){ clearTimeout(timer); btn.disabled=false; btn.textContent='تحديث الآن' });
+  }
+
+  /* ---- UI ---- */
+  function chips(box,key){
+    box.innerHTML='';
+    ORDER.forEach(function(c){
+      var b=document.createElement('button');
+      b.type='button';b.className='chip';b.setAttribute('aria-pressed',st[key]===c);
+      b.innerHTML=CUR[c].name+'<small>'+c+'</small>';
+      b.onclick=function(){
+        if(key==='from'&&c===st.to){st.to=st.from}
+        if(key==='to'&&c===st.from){st.from=st.to}
+        st[key]=c;render();
+      };
+      box.appendChild(b);
+    });
+  }
+  function srcChips(){
+    var box=$('src-chips');box.innerHTML='';
+    [['bank','البنك','تلقائي'],['market','السوق','يدوي']].forEach(function(o){
+      var b=document.createElement('button');
+      b.type='button';b.className='chip';b.setAttribute('aria-pressed',st.src===o[0]);
+      b.innerHTML=o[1]+'<small>'+o[2]+'</small>';
+      b.onclick=function(){st.src=o[0];lsSet('sarafa-src',st.src);render()};
+      box.appendChild(b);
+    });
+  }
+  function renderBank(){
+    $('b-iqd-buy').textContent  = bank ? fmtRate(bank.iqdBuy)  : '—';
+    $('b-iqd-sell').textContent = bank ? fmtRate(bank.iqdSell) : '—';
+    $('b-try-buy').textContent  = bank ? fmtRate(bank.tryBuy)  : '—';
+    $('b-try-sell').textContent = bank ? fmtRate(bank.trySell) : '—';
+    var s=$('bank-status');
+    if(bank){
+      var days = bank.date ? Math.round((Date.parse(today())-Date.parse(bank.date))/86400000) : 0;
+      var where = bankOrigin==='online' ? ' · من الإنترنت' : ' · محفوظ على الجهاز';
+      if(days>2){ s.textContent='آخر تحديث لسعر البنك '+bank.date+where+'. ممكن يكون قديم.'; s.className='status warn'; }
+      else if(bankOrigin!=='online' && bankOrigin!==''){ s.textContent='آخر تحديث لسعر البنك '+bank.date+where; s.className='status'; }
+      else { s.textContent='آخر تحديث لسعر البنك: '+bank.date+where; s.className='status'; }
+    }
+    var need = st.src==='market' && !(mkt.iqdBuy>0 && mkt.iqdSell>0);
+    $('mkt-msg').textContent = need ? 'اكتب سعر السوق حتى تشتغل الحاسبة عليه.' : '';
+    $('mkt-msg').className = 'status'+(need?' warn':'');
+  }
+  function render(){
+    chips($('from-chips'),'from');chips($('to-chips'),'to');srcChips();renderBank();
+    var res = conv(st.amount,st.from,st.to,true);
+    $('res-label').textContent = fmt(st.amount,st.from)+' '+CUR[st.from].name+' يصير';
+    $('res-main').textContent = res==null ? '—' : fmt(res,st.to)+' '+CUR[st.to].name;
+    $('res-rate').textContent = rateText(st.from,st.to);
+    var all=$('all');all.innerHTML='';
+    ORDER.forEach(function(c){
+      var d=document.createElement('div');
+      d.innerHTML='<div class="k">'+CUR[c].name+' ('+c+')</div><div class="v num">'+fmt(conv(st.amount,st.from,c,true),c)+'</div>';
+      all.appendChild(d);
+    });
+    $('cross').innerHTML=
+      '<div><span>100 دولار</span><b class="num">'+fmt(conv(100,'USD','IQD',false),'IQD')+' دينار</b></div>'+
+      '<div><span>100 دولار</span><b class="num">'+fmt(conv(100,'USD','TRY',false),'TRY')+' ليرة</b></div>'+
+      '<div><span>100 ليرة</span><b class="num">'+fmt(conv(100,'TRY','IQD',false),'IQD')+' دينار</b></div>'+
+      '<div><span>1,000,000 دينار</span><b class="num">'+fmt(conv(1000000,'IQD','TRY',false),'TRY')+' ليرة</b></div>';
+    renderLog();
+  }
+  function renderLog(){
+    var ul=$('log');ul.innerHTML='';
+    $('log-empty').hidden = log.length>0;
+    $('clear').hidden = log.length===0;
+    log.forEach(function(e){
+      var li=document.createElement('li');
+      li.innerHTML='<span><span class="num">'+fmt(e.a,e.f)+'</span> '+CUR[e.f].name+' ← <b class="num">'+fmt(e.r,e.t)+'</b> '+CUR[e.t].name+
+        '<br><span class="t num">'+e.time+(e.m?' · عمولة '+e.m+'%':'')+'</span></span>';
+      ul.appendChild(li);
+    });
+  }
+  function persist(){
+    lsSet('sarafa-log',JSON.stringify(log));
+    lsSet('sarafa-mkt',JSON.stringify(mkt));
+  }
+  function loadLocal(){
+    try{
+      var s=lsGet('sarafa-src'); if(s==='bank'||s==='market') st.src=s;
+      var m=JSON.parse(lsGet('sarafa-mkt')||'null'); if(m){mkt={iqdBuy:+m.iqdBuy||0,iqdSell:+m.iqdSell||0}}
+      var l=JSON.parse(lsGet('sarafa-log')||'[]'); if(Array.isArray(l)) log=l.slice(0,30);
+    }catch(e){}
+    // Bank rates on first paint: last downloaded copy, else the copy shipped inside the app.
+    var saved=null; try{saved=normRates(JSON.parse(lsGet('sarafa-bank')||'null'))}catch(e){}
+    var bundled=normRates(window.BUNDLED_RATES);
+    if(saved && (!bundled || saved.date>=bundled.date)){bank=saved;bankOrigin='saved'}
+    else if(bundled){bank=bundled;bankOrigin='bundled'}
+    $('m-buy').value=showNum(mkt.iqdBuy);
+    $('m-sell').value=showNum(mkt.iqdSell);
+  }
+
+  $('amount').addEventListener('input',function(){liveFormat(this);st.amount=num(this.value);render()});
+  $('m-buy').addEventListener('input',function(){liveFormat(this);mkt.iqdBuy=num(this.value);persist();render()});
+  $('m-sell').addEventListener('input',function(){liveFormat(this);mkt.iqdSell=num(this.value);persist();render()});
+  $('margin').addEventListener('input',function(){st.margin=Math.min(num(this.value),100);render()});
+  $('swap').onclick=function(){var t=st.from;st.from=st.to;st.to=t;render()};
+  $('refresh').onclick=function(){fetchRates(true)};
+
+  $('save').onclick=function(){
+    var r=conv(st.amount,st.from,st.to,true);
+    if(!st.amount||r==null) return;
+    var d=new Date();
+    var time=d.toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+    log.unshift({a:st.amount,f:st.from,t:st.to,r:r,m:st.margin,time:time});
+    log=log.slice(0,30);persist();renderLog();
+    var b=this;b.textContent='تم التسجيل';setTimeout(function(){b.textContent='سجّل العملية'},1400);
+  };
+  function copyText(txt,done){
+    function fallback(){
+      try{
+        var ta=document.createElement('textarea');ta.value=txt;ta.setAttribute('readonly','');
+        ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();
+        var ok=document.execCommand('copy');document.body.removeChild(ta);done(ok?'تم النسخ':'انسخها يدوياً');
+      }catch(e){done('انسخها يدوياً')}
+    }
+    try{
+      if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(function(){done('تم النسخ')},fallback)}
+      else fallback();
+    }catch(e){fallback()}
+  }
+  $('copy').onclick=function(){
+    var r=conv(st.amount,st.from,st.to,true);
+    if(r==null) return;
+    var b=this;
+    copyText(fmt(st.amount,st.from)+' '+CUR[st.from].name+' = '+fmt(r,st.to)+' '+CUR[st.to].name,function(m){
+      b.textContent=m;setTimeout(function(){b.textContent='انسخ النتيجة'},1400);
+    });
+  };
+  var armed=false,clearBtn=$('clear');
+  clearBtn.onclick=function(){
+    if(!armed){armed=true;clearBtn.textContent='اضغط مرة ثانية للتأكيد';
+      setTimeout(function(){armed=false;clearBtn.textContent='مسح السجل'},3000);return}
+    log=[];armed=false;clearBtn.textContent='مسح السجل';persist();renderLog();
+  };
+
+  // Refresh when the app comes back to the screen (at most every 10 minutes) and every 30 minutes while open.
+  document.addEventListener('visibilitychange',function(){
+    if(document.visibilityState==='visible' && Date.now()-lastFetch>600000) fetchRates(false);
+  });
+  setInterval(function(){fetchRates(false)},1800000);
+
+  loadLocal();render();fetchRates(false);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,37 @@
+name: Update bank rates
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '7 5 * * *'
+    - cron: '7 12 * * *'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-rates
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Read the bank rates
+        run: node scripts/update-rates.mjs
+      - name: Commit if changed
+        run: |
+          git config user.name "rates-bot"
+          git config user.email "rates-bot@users.noreply.github.com"
+          git add rates.json www/rates-bundled.js
+          if git diff --cached --quiet; then
+            echo "Nothing to commit"
+          else
+            git commit -m "Update bank rates"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
