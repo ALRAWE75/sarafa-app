@@ -3,3 +3,4 @@ dist/
 android/
 ios/
 .DS_Store
+dist-extension/

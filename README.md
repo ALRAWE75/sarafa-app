@@ -12,6 +12,7 @@
 
 - ويندوز: `Sarafa-Setup-*.exe` (يتثبت) أو `Sarafa-Portable-*.exe` (يشتغل مباشرة)
 - أندرويد: `Sarafa.apk`
+- كروم: `Sarafa-Chrome-Extension.zip` (فك الضغط، ثم من `chrome://extensions` فعّل Developer mode واضغط Load unpacked واختر المجلد)
 
 ## آيفون
 

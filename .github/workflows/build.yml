@@ -61,8 +61,24 @@ jobs:
           path: Sarafa.apk
           if-no-files-found: error
 
+  extension:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/build-extension.mjs
+      - name: Zip the extension
+        run: cd dist-extension && zip -r ../Sarafa-Chrome-Extension.zip .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: extension
+          path: Sarafa-Chrome-Extension.zip
+          if-no-files-found: error
+
   release:
-    needs: [windows, android]
+    needs: [windows, android, extension]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -78,4 +94,4 @@ jobs:
           gh release delete latest --cleanup-tag --yes || true
           gh release create latest out/* \
             --title "آخر نسخة" \
-            --notes "ويندوز: Sarafa-Setup (يتثبت) أو Sarafa-Portable (يشتغل مباشرة). أندرويد: Sarafa.apk. الملفات غير موقّعة تجارياً، فيظهر تحذير أول مرة."
+            --notes "ويندوز: Sarafa-Setup (يتثبت) أو Sarafa-Portable (يشتغل مباشرة). أندرويد: Sarafa.apk. كروم: Sarafa-Chrome-Extension.zip (فك الضغط ثم حمّل غير مضغوطة من chrome://extensions). الملفات غير موقّعة تجارياً، فيظهر تحذير أول مرة."
