@@ -55,20 +55,48 @@ async function load(url) {
   return res.text();
 }
 
+const FALLBACK_URL = 'https://open.er-api.com/v6/latest/USD';
+
+/** Mid-market rates from open.er-api.com (free, no key, updated daily). buy = sell = mid. */
+export function parseFallback(j) {
+  if (j?.result !== 'success' || j.base_code !== 'USD') throw new Error('fallback: bad response');
+  const out = { source: 'open.er-api.com (mid-market)' };
+  for (const [k, code] of [['iqd', 'IQD'], ['try', 'TRY']]) {
+    const v = Number(j.rates?.[code]);
+    const [lo, hi] = LIMITS[k];
+    if (!(v >= lo && v <= hi)) throw new Error(`fallback: ${code} out of range: ${v}`);
+    out[k] = { buy: Math.round(v * 10000) / 10000, sell: Math.round(v * 10000) / 10000 };
+  }
+  out.date = new Date(Number(j.time_last_update_unix) * 1000).toISOString().slice(0, 10);
+  return out;
+}
+
+async function getRates() {
+  try {
+    const iqd = parsePage(await load(PAGES.iqd), 'iqd');
+    const tr = parsePage(await load(PAGES.try), 'try');
+    return {
+      date: iqd.date < tr.date ? iqd.date : tr.date, // the older of the two days
+      source: 'egcurrency.com',
+      iqd: { buy: iqd.buy, sell: iqd.sell },
+      try: { buy: tr.buy, sell: tr.sell }
+    };
+  } catch (e) {
+    console.log('egcurrency failed (' + e.message + '), using the mid-market fallback');
+    const res = await fetch(FALLBACK_URL);
+    if (!res.ok) throw new Error(`${FALLBACK_URL} -> HTTP ${res.status}`);
+    return parseFallback(await res.json());
+  }
+}
+
 async function main() {
-  const iqd = parsePage(await load(PAGES.iqd), 'iqd');
-  const tr = parsePage(await load(PAGES.try), 'try');
-  const date = iqd.date < tr.date ? iqd.date : tr.date; // the older of the two days
+  const got = await getRates();
+  const date = got.date;
 
   const age = (Date.now() - Date.parse(date + 'T00:00:00Z')) / 86400000;
   if (age > 4) throw new Error(`rates are ${Math.round(age)} days old (${date}), not writing`);
 
-  const next = {
-    date,
-    source: 'egcurrency.com',
-    iqd: { buy: iqd.buy, sell: iqd.sell },
-    try: { buy: tr.buy, sell: tr.sell }
-  };
+  const next = { date, source: got.source, iqd: got.iqd, try: got.try };
 
   const same =
     existsSync('rates.json') &&
