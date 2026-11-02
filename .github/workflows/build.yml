@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths-ignore:
       - 'rates.json'
+      - 'market.json'
       - 'www/rates-bundled.js'
       - 'README.md'
 

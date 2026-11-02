@@ -8,7 +8,7 @@
 <title>حاسبة الصيرفة</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Reem+Kufi:wght@500;700&display=swap">
 <style>
-/* Layout: one narrow column. Converter first, then rates (bank = automatic, market = typed by hand), then the ledger of saved operations. */
+/* Layout: one narrow column. Converter first, then rates (bank + market = automatic, market can be typed over), then the ledger of saved operations. */
 :root{
   --bg:#edf2f0;--surface:#ffffff;--surface2:#e2eae7;--ink:#12241f;--muted:#586d66;--line:#c9d6d1;
   --accent:#0f6b54;--accent-ink:#ffffff;--warn:#7a4f00;--warn-bg:#fbf0d6;
@@ -150,7 +150,7 @@ input[type=text]:focus-visible,button:focus-visible{outline:2px solid var(--acce
     </div>
 
     <div class="group">
-      <h3>سعر السوق للدينار · يدوي</h3>
+      <h3>سعر السوق للدينار</h3>
       <div class="fields">
         <div>
           <label for="m-buy">شراء دولار</label>
@@ -162,6 +162,7 @@ input[type=text]:focus-visible,button:focus-visible{outline:2px solid var(--acce
         </div>
       </div>
       <p class="status" id="mkt-msg"></p>
+      <button class="btn plain" id="mkt-auto" type="button" hidden>رجّع لسعر القناة التلقائي</button>
     </div>
 
     <p class="hint">شراء = كم تدفع حتى تاخذ 1 دولار. بيع = كم تستلم إذا بعت 1 دولار. الليرة تحسب دائماً على سعر البنك.</p>
@@ -187,11 +188,14 @@ input[type=text]:focus-visible,button:focus-visible{outline:2px solid var(--acce
 <script>
 (function(){
   var RATES_URL = 'https://raw.githubusercontent.com/ALRAWE75/sarafa-app/main/rates.json';
+  var MARKET_URL = 'https://raw.githubusercontent.com/ALRAWE75/sarafa-app/main/market.json';
   var CUR = {IQD:{name:'دينار',dec:0}, TRY:{name:'ليرة',dec:2}, USD:{name:'دولار',dec:2}};
   var ORDER = ['USD','IQD','TRY'];
   var st = {amount:100, from:'USD', to:'IQD', src:'bank', margin:0};
   var bank = null, bankOrigin = '';      // bankOrigin: 'online' | 'saved' | 'bundled'
   var mkt = {iqdBuy:0, iqdSell:0};       // typed by hand
+  var mktManual = false;                 // true once the user typed a price: it then wins over the channel price
+  var mktAuto = null;                    // {buy,sell,date,postedAt} read from the Telegram channel
   var log = [];
   var lastFetch = 0;
 
@@ -234,7 +238,10 @@ input[type=text]:focus-visible,button:focus-visible{outline:2px solid var(--acce
     return (r.iqdBuy>0&&r.iqdSell>0&&r.tryBuy>0&&r.trySell>0) ? r : null;
   }
   function iqdRates(){
-    if(st.src==='market') return {buy:mkt.iqdBuy, sell:mkt.iqdSell};
+    if(st.src==='market'){
+      if(!mktManual && mktAuto) return {buy:mktAuto.buy, sell:mktAuto.sell};
+      return {buy:mkt.iqdBuy, sell:mkt.iqdSell};
+    }
     return bank ? {buy:bank.iqdBuy, sell:bank.iqdSell} : {buy:0, sell:0};
   }
   function buyRate(c){ if(c==='USD') return 1; if(c==='IQD') return iqdRates().buy; return bank ? bank.tryBuy : 0 }
@@ -261,6 +268,7 @@ input[type=text]:focus-visible,button:focus-visible{outline:2px solid var(--acce
   function fetchRates(manual){
     var btn=$('refresh');
     lastFetch=Date.now();
+    fetchMarket();
     if(manual){btn.disabled=true;btn.textContent='جاري التحديث…'}
     var ctrl = (typeof AbortController!=='undefined') ? new AbortController() : null;
     var timer = setTimeout(function(){ if(ctrl) ctrl.abort() },9000);
@@ -276,6 +284,29 @@ input[type=text]:focus-visible,button:focus-visible{outline:2px solid var(--acce
         if(manual){ var s=$('bank-status'); s.textContent='ما قدرت أجيب التحديث. تأكد من الإنترنت، وهذي آخر أسعار محفوظة.'; s.className='status warn'; }
       })
       .then(function(){ clearTimeout(timer); btn.disabled=false; btn.textContent='تحديث الآن' });
+  }
+
+  function normMarket(d){
+    if(!d||!d.iqd) return null;
+    var r={buy:+d.iqd.buy,sell:+d.iqd.sell,date:String(d.date||''),postedAt:String(d.postedAt||'')};
+    return (r.buy>0&&r.sell>0) ? r : null;
+  }
+  function setMarket(r){
+    if(mktAuto && r.postedAt && mktAuto.postedAt && r.postedAt < mktAuto.postedAt) return;
+    mktAuto=r; showMarketInputs(); render();
+  }
+  function fetchMarket(){
+    var ctrl = (typeof AbortController!=='undefined') ? new AbortController() : null;
+    var timer = setTimeout(function(){ if(ctrl) ctrl.abort() },9000);
+    fetch(MARKET_URL+'?t='+Math.floor(Date.now()/300000), {cache:'no-store', signal: ctrl?ctrl.signal:undefined})
+      .then(function(res){ if(!res.ok) throw new Error('http'); return res.json() })
+      .then(function(d){ var r=normMarket(d); if(!r) throw new Error('bad'); lsSet('sarafa-market',JSON.stringify(d)); setMarket(r) })
+      .catch(function(){})
+      .then(function(){ clearTimeout(timer) });
+  }
+  function showMarketInputs(){
+    // While the channel price is in use the boxes show it; once the user types, the boxes hold their own numbers.
+    if(!mktManual && mktAuto){ $('m-buy').value=showNum(mktAuto.buy); $('m-sell').value=showNum(mktAuto.sell); }
   }
 
   /* ---- UI ---- */
@@ -295,7 +326,7 @@ input[type=text]:focus-visible,button:focus-visible{outline:2px solid var(--acce
   }
   function srcChips(){
     var box=$('src-chips');box.innerHTML='';
-    [['bank','البنك','تلقائي'],['market','السوق','يدوي']].forEach(function(o){
+    [['bank','البنك','تلقائي'],['market','السوق','قناة القصر']].forEach(function(o){
       var b=document.createElement('button');
       b.type='button';b.className='chip';b.setAttribute('aria-pressed',st.src===o[0]);
       b.innerHTML=o[1]+'<small>'+o[2]+'</small>';
@@ -316,9 +347,19 @@ input[type=text]:focus-visible,button:focus-visible{outline:2px solid var(--acce
       else if(bankOrigin!=='online' && bankOrigin!==''){ s.textContent='آخر تحديث لسعر البنك '+bank.date+where; s.className='status'; }
       else { s.textContent='آخر تحديث لسعر البنك: '+bank.date+where; s.className='status'; }
     }
-    var need = st.src==='market' && !(mkt.iqdBuy>0 && mkt.iqdSell>0);
-    $('mkt-msg').textContent = need ? 'اكتب سعر السوق حتى تشتغل الحاسبة عليه.' : '';
-    $('mkt-msg').className = 'status'+(need?' warn':'');
+    var mm=$('mkt-msg'), ab=$('mkt-auto');
+    if(!mktManual && mktAuto){
+      var when = mktAuto.postedAt ? new Date(mktAuto.postedAt).toLocaleString('en-GB',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : mktAuto.date;
+      var old = mktAuto.postedAt && (Date.now()-Date.parse(mktAuto.postedAt))>36*3600000;
+      mm.textContent='تلقائي من قناة القصر للصرافة · آخر منشور '+when+(old?' · قديم، اكتب السعر بيدك إذا تريد':'');
+      mm.className='status'+(old?' warn':''); ab.hidden=true;
+    } else if(mktManual){
+      mm.textContent='تستخدم سعر مكتوب بيدك.'; mm.className='status'; ab.hidden=!mktAuto;
+    } else {
+      var need = st.src==='market' && !(mkt.iqdBuy>0 && mkt.iqdSell>0);
+      mm.textContent = need ? 'اكتب سعر السوق حتى تشتغل الحاسبة عليه.' : '';
+      mm.className='status'+(need?' warn':''); ab.hidden=true;
+    }
   }
   function render(){
     chips($('from-chips'),'from');chips($('to-chips'),'to');srcChips();renderBank();
@@ -353,6 +394,7 @@ input[type=text]:focus-visible,button:focus-visible{outline:2px solid var(--acce
   function persist(){
     lsSet('sarafa-log',JSON.stringify(log));
     lsSet('sarafa-mkt',JSON.stringify(mkt));
+    lsSet('sarafa-mkt-manual',mktManual?'1':'0');
   }
   function loadLocal(){
     try{
@@ -365,13 +407,24 @@ input[type=text]:focus-visible,button:focus-visible{outline:2px solid var(--acce
     var bundled=normRates(window.BUNDLED_RATES);
     if(saved && (!bundled || saved.date>=bundled.date)){bank=saved;bankOrigin='saved'}
     else if(bundled){bank=bundled;bankOrigin='bundled'}
+    mktManual = lsGet('sarafa-mkt-manual')==='1' && (mkt.iqdBuy>0 || mkt.iqdSell>0);
+    try{ var ms=normMarket(JSON.parse(lsGet('sarafa-market')||'null')); if(ms) mktAuto=ms }catch(e){}
     $('m-buy').value=showNum(mkt.iqdBuy);
     $('m-sell').value=showNum(mkt.iqdSell);
+    showMarketInputs();
+  }
+  function typed(el,key){
+    // The first typed digit switches to manual mode, starting from the number that was on screen.
+    if(!mktManual){ mktManual=true; if(mktAuto){ mkt.iqdBuy=mktAuto.buy; mkt.iqdSell=mktAuto.sell; } }
+    liveFormat(el); mkt[key]=num(el.value);
+    if(!(mkt.iqdBuy>0) && !(mkt.iqdSell>0)) mktManual=false;   // both boxes emptied -> back to automatic
+    persist(); showMarketInputs(); render();
   }
 
   $('amount').addEventListener('input',function(){liveFormat(this);st.amount=num(this.value);render()});
-  $('m-buy').addEventListener('input',function(){liveFormat(this);mkt.iqdBuy=num(this.value);persist();render()});
-  $('m-sell').addEventListener('input',function(){liveFormat(this);mkt.iqdSell=num(this.value);persist();render()});
+  $('m-buy').addEventListener('input',function(){typed(this,'iqdBuy')});
+  $('m-sell').addEventListener('input',function(){typed(this,'iqdSell')});
+  $('mkt-auto').onclick=function(){mktManual=false;persist();showMarketInputs();render()};
   $('margin').addEventListener('input',function(){st.margin=Math.min(num(this.value),100);render()});
   $('swap').onclick=function(){var t=st.from;st.from=st.to;st.to=t;render()};
   $('refresh').onclick=function(){fetchRates(true)};
