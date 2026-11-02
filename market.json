@@ -1,8 +1,11 @@
 {
   "date": "2026-11-02",
-  "postedAt": "2026-11-02T16:33:32.000Z",
+  "postedAt": "2026-11-02T18:47:11.000Z",
   "source": "t.me/Kukh_alomlat",
-  "post": "Kukh_alomlat/16210",
-  "iqd": { "buy": 1682.5, "sell": 1677.5 },
-  "updatedAt": "2026-11-02T17:00:00.000Z"
+  "post": "Kukh_alomlat/16212",
+  "iqd": {
+    "buy": 1680,
+    "sell": 1675
+  },
+  "updatedAt": "2026-11-02T18:57:46.794Z"
 }
