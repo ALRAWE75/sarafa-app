@@ -95,6 +95,7 @@ async function main() {
 if (import.meta.url === `file://${process.argv[1]}`) {
   main().catch((e) => {
     console.error('update-market failed:', e.message);
+    console.log('::error title=update-market failed::' + String(e.message).replace(/\n/g, ' ').slice(0, 300));
     process.exit(1);
   });
 }

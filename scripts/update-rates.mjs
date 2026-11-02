@@ -45,8 +45,9 @@ export function parsePage(html, expectTo) {
 async function load(url) {
   const res = await fetch(url, {
     headers: {
-      'user-agent': 'Mozilla/5.0 (compatible; sarafa-rates/1.0; +https://github.com/ALRAWE75/sarafa-app)',
-      accept: 'text/html'
+      'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36',
+      accept: 'text/html,application/xhtml+xml',
+      'accept-language': 'en-US,en;q=0.9'
     },
     redirect: 'follow'
   });
@@ -94,6 +95,7 @@ async function main() {
 if (import.meta.url === `file://${process.argv[1]}`) {
   main().catch((e) => {
     console.error('update-rates failed:', e.message);
+    console.log('::error title=update-rates failed::' + String(e.message).replace(/\n/g, ' ').slice(0, 300));
     process.exit(1);
   });
 }
