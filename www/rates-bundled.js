@@ -1,1 +1,1 @@
-window.BUNDLED_RATES = {"date":"2026-11-07","source":"open.er-api.com (mid-market)","iqd":{"buy":1518.6826,"sell":1518.6826},"try":{"buy":50.1774,"sell":50.1774},"updatedAt":"2026-11-07T05:51:27.726Z"};
+window.BUNDLED_RATES = {"date":"2026-11-08","source":"open.er-api.com (mid-market)","iqd":{"buy":1518.6323,"sell":1518.6323},"try":{"buy":50.172,"sell":50.172},"updatedAt":"2026-11-08T05:52:43.599Z"};
